@@ -1,15 +1,14 @@
 # Babel Jewelry Message Generator
 
-A React-based web application for Babel Jewelry to create daily gold price updates and AI-enhanced marketing messages for WhatsApp and social media.
+تطبيق React لمجوهرات بابل لإنشاء تحديثات أسعار الذهب اليومية ورسائل تسويقية عبر واتساب.
 
 ## Tech Stack
 
-- **Frontend**: React 19 + TypeScript
-- **Build Tool**: Vite 6
-- **Styling**: Tailwind CSS 4.1 (via @tailwindcss/vite plugin)
-- **AI**: Google Gemini API (@google/genai) for Arabic marketing message generation
-- **Icons**: Lucide React
-- **Animations**: Motion (Framer Motion)
+- **Frontend**: React 19 + TypeScript + Tailwind CSS 4 + Vite 6
+- **Backend**: Express.js (TypeScript) على منفذ 3001
+- **Database**: PostgreSQL (Replit built-in)
+- **AI**: Google Gemini API لتوليد رسائل عربية فخمة
+- **Scheduling**: node-cron للتذكير اليومي التلقائي
 - **Package Manager**: npm
 
 ## Project Structure
@@ -17,39 +16,50 @@ A React-based web application for Babel Jewelry to create daily gold price updat
 ```
 /
 ├── src/
-│   ├── main.tsx        # App entry point
-│   ├── App.tsx         # Main component (state, AI logic, UI tabs)
-│   └── index.css       # Global styles + Tailwind directives
-├── index.html          # HTML entry point
-├── vite.config.ts      # Vite config (port 5000, allowedHosts, Gemini key injection)
-├── package.json        # Dependencies and scripts
-└── tsconfig.json       # TypeScript config
+│   ├── main.tsx          # App entry point
+│   ├── App.tsx           # Main component (all tabs + API integration)
+│   └── index.css         # Global styles + Tailwind
+├── server.ts             # Express backend (API routes + cron)
+├── index.html
+├── vite.config.ts        # Vite config (port 5000, proxy /api → 3001)
+└── package.json
 ```
+
+## Database Schema
+
+- **store_settings**: إعدادات المتجر (الاسم، الفروع، أرقام التواصل)
+- **gold_prices**: سجل تاريخي لأسعار الذهب
+- **messages**: الرسائل المُولَّدة المحفوظة (مع الصور)
+- **scheduled_tasks**: إعدادات التذكير اليومي التلقائي
+
+## API Routes (Backend port 3001)
+
+- `GET/PUT /api/settings` - إعدادات المتجر
+- `GET/POST/DELETE /api/gold-prices` - سجل الأسعار
+- `GET/POST/DELETE /api/messages` - الرسائل المحفوظة
+- `GET /api/gold-price/live` - السعر الدولي الفوري للذهب
+- `GET/PUT /api/schedule` - إعدادات الجدولة
+- `GET /api/health` - فحص حالة الخادم
+
+## Workflows
+
+- **Start application**: `npm run dev` على منفذ 5000 (webview)
+- **Backend API**: `npm run server` على منفذ 3001 (console)
 
 ## Environment Variables
 
-- `GEMINI_API_KEY`: Required for Gemini AI API calls. Set in Replit Secrets.
-- `APP_URL`: The URL where the app is hosted (optional).
+- `GEMINI_API_KEY`: مطلوب لـ Gemini AI
+- `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`: PostgreSQL
 
-## Running Locally
+## Features
 
-```bash
-npm install
-npm run dev
-```
-
-The app runs on port 5000 at `http://0.0.0.0:5000`.
+1. **إنشاء الرسالة**: إدخال الأسعار + جلب السعر الدولي + توليد AI
+2. **المعاينة**: عرض الرسالة + نسخ + مشاركة واتساب
+3. **السجل**: تاريخ الرسائل والأسعار من قاعدة البيانات
+4. **الإعدادات**: إعدادات المتجر + التذكير اليومي + تعليمات WhatsApp Business API
 
 ## Deployment
 
-Configured as a static site:
-- Build command: `npm run build`
-- Public directory: `dist`
-
-## Key Features
-
-- Gold price input (buy/sell, karat types)
-- AI-powered Arabic marketing message generation via Gemini
-- WhatsApp direct sharing
-- Store settings persisted to localStorage
-- Image upload support
+Static site:
+- Build: `npm run build`
+- Public dir: `dist`
