@@ -1,0 +1,5 @@
+{
+  "name": "Babel Jewelry Message Generator",
+  "description": "A web app for Babel Jewelry to generate daily gold price update messages with AI enhancement, image preview, and WhatsApp sharing.",
+  "requestFramePermissions": []
+}
