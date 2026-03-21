@@ -3,6 +3,7 @@ import cors from 'cors';
 import { Pool } from 'pg';
 import cron from 'node-cron';
 import * as dotenv from 'dotenv';
+import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
 
@@ -113,6 +114,52 @@ app.delete('/api/messages/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'خطأ في حذف الرسالة' });
+  }
+});
+
+// --- AI Message Generation ---
+function buildTemplate(body: {
+  sell_price: string; buy_price: string; karat: string; currency: string;
+  note?: string; store_name?: string; branches?: string; contacts?: string;
+  group_link?: string; date: string; time: string;
+}) {
+  return `✨ ${body.store_name || 'مجوهرات بابل'} ✨\n\nأسعار الذهب لهذا اليوم:\nالعيار: ${body.karat}\nسعر البيع: ${body.sell_price} ${body.currency} للغرام\nسعر الشراء: ${body.buy_price} ${body.currency} للغرام\n\n${body.note ? `📌 ${body.note}\n\n` : ''}📅 التاريخ: ${body.date}\n⏰ الوقت: ${body.time}\n\n📍 فروعنا:\n${body.branches || 'لم يتم تحديد الفروع'}\n\n📞 للتواصل:\n${body.contacts || 'لم يتم تحديد أرقام التواصل'}\n\n💎 نسعد بخدمتكم دائماً!\n\n🔗 انضموا لمجموعتنا:\n${body.group_link || ''}`;
+}
+
+app.post('/api/generate-message', async (req, res) => {
+  const { buy_price, sell_price, karat, currency, note, store_name, branches, contacts, group_link, is_regenerate } = req.body;
+  if (!buy_price || !sell_price) return res.status(400).json({ error: 'يرجى إدخال السعرين' });
+
+  const now = new Date();
+  const date = now.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
+  const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const templateData = { sell_price, buy_price, karat, currency, note, store_name, branches, contacts, group_link, date, time };
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.json({ message: buildTemplate(templateData), ai_used: false });
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `أنت مدير حسابات تواصل اجتماعي محترف لشركة مجوهرات راقية تُدعى "${store_name || 'مجوهرات بابل'}".
+قم بصياغة رسالة واتساب تسويقية، جذابة، وأنيقة لتحديث الزبائن بأسعار الذهب اليوم.
+استخدم المعلومات التالية حصراً:
+- سعر البيع: ${sell_price} ${currency} للغرام
+- سعر الشراء: ${buy_price} ${currency} للغرام
+- العيار: ${karat}
+- التاريخ: ${date}
+- الوقت: ${time}
+- ملاحظة: ${note || 'لا توجد ملاحظات إضافية'}
+- فروعنا: ${branches || 'غير محدد'}
+- أرقام التواصل: ${contacts || 'غير محدد'}
+الرابط الثابت: ${group_link || ''}
+الشروط: نبرة فخمة، ذكر اسم المحل، إيموجي مناسبة ✨💎👑📍📞، تنسيق مريح.
+${is_regenerate ? 'ملاحظة: إعادة صياغة بأسلوب مختلف.' : ''}
+أخرج النص النهائي فقط بدون مقدمات.`;
+    const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+    res.json({ message: response.text || buildTemplate(templateData), ai_used: true });
+  } catch (err) {
+    console.error('Gemini error:', err);
+    res.json({ message: buildTemplate(templateData), ai_used: false });
   }
 });
 
