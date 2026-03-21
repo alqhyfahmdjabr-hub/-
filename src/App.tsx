@@ -74,7 +74,7 @@ export default function App() {
   const [currency, setCurrency] = useState('يمني');
   const [note, setNote] = useState('');
   const [image, setImage] = useState<string | null>(null);
-  const [useAI, setUseAI] = useState(true);
+  const [useAI, setUseAI] = useState(!!process.env.GEMINI_API_KEY);
 
   // Store Settings
   const [storeInfo, setStoreInfo] = useState<StoreSettings>({
