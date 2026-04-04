@@ -11,6 +11,7 @@
 - **Database**: PostgreSQL (Replit built-in)
 - **AI**: Google Gemini API (gemini-2.0-flash) - Backend + Frontend
 - **Scheduling**: node-cron للتذكير اليومي التلقائي
+- **Telegram Bot**: node-telegram-bot-api — يردّ تلقائياً على طلبات أسعار الذهب (@babel120_bot)
 - **Package Manager**: npm
 
 ## Project Structure

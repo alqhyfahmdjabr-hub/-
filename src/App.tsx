@@ -951,6 +951,42 @@ ${storeInfo.group_link}`;
                   ))}
                 </ol>
               </div>
+
+              {/* Telegram Bot Card */}
+              <div className="bg-zinc-900/50 border border-blue-500/20 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold mb-2 flex items-center gap-2 text-blue-400">
+                  <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                  بوت تيليجرام — أسعار الذهب التلقائية
+                </h2>
+                <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
+                  بوت بابل على تيليجرام يردّ تلقائياً على عملائك بأسعار الذهب الحالية عند طلبها.
+                </p>
+                <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-xl">🤖</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-300">@babel120_bot</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">مفعّل ويعمل الآن</p>
+                  </div>
+                  <a
+                    href="https://t.me/babel120_bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mr-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors font-medium"
+                  >
+                    فتح البوت
+                  </a>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-zinc-500 font-medium">الكلمات التي تُشغّل البوت تلقائياً:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['سعر الذهب', 'أسعار', 'كم السعر', 'عيار 21', 'gold price', 'اليوم'].map(kw => (
+                      <span key={kw} className="px-3 py-1 bg-zinc-800 rounded-full text-xs text-zinc-300 border border-white/5">{kw}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </motion.section>
           )}
 

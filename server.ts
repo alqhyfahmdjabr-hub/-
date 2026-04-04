@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import cron from 'node-cron';
 import * as dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import TelegramBot from 'node-telegram-bot-api';
 
 dotenv.config();
 
@@ -237,10 +238,124 @@ async function initCronFromDB() {
   }
 }
 
+// --- Telegram Bot ---
+const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const BOT_USERNAME = 'babel120_bot';
+const BOT_LINK = `https://t.me/${BOT_USERNAME}`;
+
+const PRICE_KEYWORDS = [
+  'سعر', 'أسعار', 'اسعار', 'ذهب', 'عيار', 'gold', 'price',
+  'كم', 'بكم', 'غرام', 'بيع', 'شراء', 'اليوم', 'الان', 'الآن',
+];
+
+function containsPriceKeyword(text: string): boolean {
+  const lower = text.toLowerCase();
+  return PRICE_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+async function getLatestPriceMessage(): Promise<string> {
+  try {
+    const [pricesResult, settingsResult] = await Promise.all([
+      pool.query('SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 1'),
+      pool.query('SELECT * FROM store_settings WHERE id = 1'),
+    ]);
+
+    const settings = settingsResult.rows[0] || {};
+    const storeName = settings.name || 'مجوهرات بابل';
+    const contacts = settings.contacts || '';
+    const branches = settings.branches || '';
+    const groupLink = settings.group_link || '';
+
+    if (pricesResult.rows.length === 0) {
+      return `💎 *${storeName}*\n\nعذراً، لا توجد أسعار محدَّثة حالياً.\nتواصل معنا مباشرة:\n${contacts || 'راجع قناتنا للأسعار'}`;
+    }
+
+    const price = pricesResult.rows[0];
+    const now = new Date();
+    const date = now.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
+    const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    let msg = `✨ *${storeName}* ✨\n\n`;
+    msg += `💰 *أسعار الذهب لهذا اليوم*\n\n`;
+    msg += `🏅 العيار: *${price.karat}*\n`;
+    msg += `📈 سعر البيع: *${price.sell_price} ${price.currency}* للغرام\n`;
+    msg += `📉 سعر الشراء: *${price.buy_price} ${price.currency}* للغرام\n`;
+    if (price.note) msg += `\n📌 ${price.note}\n`;
+    msg += `\n📅 ${date}  ⏰ ${time}\n`;
+    if (branches) msg += `\n📍 *فروعنا:*\n${branches}\n`;
+    if (contacts) msg += `\n📞 *للتواصل:*\n${contacts}\n`;
+    msg += `\n💎 نسعد بخدمتكم دائماً!`;
+    if (groupLink) msg += `\n\n🔗 ${groupLink}`;
+
+    return msg;
+  } catch (err) {
+    console.error('خطأ في جلب السعر للبوت:', err);
+    return '⚠️ تعذّر جلب الأسعار الآن. حاول مرة أخرى.';
+  }
+}
+
+function initTelegramBot() {
+  if (!TELEGRAM_TOKEN) {
+    console.log('⚠️ TELEGRAM_BOT_TOKEN غير محدد — البوت غير مفعّل');
+    return;
+  }
+
+  const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+
+  bot.onText(/\/start/, async (msg) => {
+    const chatId = msg.chat.id;
+    const firstName = msg.from?.first_name || 'عزيزنا';
+    const welcomeMsg =
+      `مرحباً ${firstName}! 👋\n\n` +
+      `أنا بوت *مجوهرات بابل* 💎\n\n` +
+      `يمكنني مساعدتك في:\n` +
+      `• معرفة أسعار الذهب اليومية\n\n` +
+      `فقط اكتب أي من هذه الرسائل:\n` +
+      `_"كم سعر الذهب اليوم؟"_\n` +
+      `_"أسعار الذهب"_\n` +
+      `_"سعر عيار 21"_\n\n` +
+      `وسأردّ عليك فوراً! ✨`;
+    await bot.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
+  });
+
+  bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+    const text = msg.text || '';
+
+    if (text.startsWith('/')) return;
+
+    if (containsPriceKeyword(text)) {
+      try {
+        await bot.sendChatAction(chatId, 'typing');
+        const priceMsg = await getLatestPriceMessage();
+        await bot.sendMessage(chatId, priceMsg, { parse_mode: 'Markdown' });
+      } catch (err) {
+        console.error('خطأ في إرسال رسالة البوت:', err);
+      }
+      return;
+    }
+
+    const hint =
+      `💬 شكراً على تواصلك!\n\n` +
+      `لمعرفة أسعار الذهب، اكتب:\n` +
+      `*"سعر الذهب"* أو *"أسعار الذهب اليوم"*\n\n` +
+      `وسأردّ عليك فوراً 💎`;
+    await bot.sendMessage(chatId, hint, { parse_mode: 'Markdown' });
+  });
+
+  bot.on('polling_error', (err) => {
+    console.error('Telegram polling error:', (err as Error).message);
+  });
+
+  console.log(`🤖 بوت تيليجرام مفعّل: @${BOT_USERNAME}`);
+  console.log(`🔗 رابط البوت: ${BOT_LINK}`);
+}
+
 // --- Start Server ---
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 الخادم يعمل على المنفذ ${PORT}`);
   await initCronFromDB();
+  initTelegramBot();
 });
 
 export default app;

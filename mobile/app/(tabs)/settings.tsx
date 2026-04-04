@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, Platform, Alert,
+  StyleSheet, ActivityIndicator, Platform, Alert, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '@/lib/query-client';
+
+const TELEGRAM_BOT_LINK = 'https://t.me/babel120_bot';
 
 const DARK = '#0A0A0A';
 const CARD = '#141414';
@@ -216,6 +218,49 @@ export default function SettingsScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Telegram Bot Card */}
+      <View style={styles.telegramSection}>
+        <View style={styles.telegramHeader}>
+          <View style={styles.telegramDot} />
+          <Text style={styles.telegramTitle}>بوت تيليجرام — الأسعار التلقائية</Text>
+        </View>
+        <Text style={styles.telegramSub}>
+          البوت يردّ على عملائك تلقائياً بأسعار الذهب عند طلبها
+        </Text>
+
+        <View style={styles.telegramCard}>
+          <View style={styles.botAvatar}>
+            <Text style={{ fontSize: 22 }}>🤖</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.botUsername}>@babel120_bot</Text>
+            <View style={styles.activeBadge}>
+              <View style={styles.greenDot} />
+              <Text style={styles.activeText}>مفعّل ويعمل الآن</Text>
+            </View>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.openBotBtn}
+          onPress={() => Linking.openURL(TELEGRAM_BOT_LINK)}
+        >
+          <Ionicons name="paper-plane-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.openBotText}>فتح البوت في تيليجرام</Text>
+        </TouchableOpacity>
+
+        <View style={styles.keywordsBox}>
+          <Text style={styles.keywordsLabel}>الكلمات التي تُشغّل البوت:</Text>
+          <View style={styles.keywordsRow}>
+            {['سعر الذهب', 'أسعار', 'كم السعر', 'عيار 21', 'اليوم'].map(kw => (
+              <View key={kw} style={styles.keywordChip}>
+                <Text style={styles.keywordText}>{kw}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -305,4 +350,67 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   schedBtnText: { color: GOLD, fontSize: 15, fontWeight: '600' },
+  telegramSection: {
+    backgroundColor: '#0F1A2E',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.25)',
+  },
+  telegramHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  telegramDot: { width: 6, height: 22, borderRadius: 3, backgroundColor: '#3B82F6' },
+  telegramTitle: { fontSize: 16, fontWeight: '700', color: '#93C5FD', textAlign: 'right' },
+  telegramSub: { fontSize: 13, color: MUTED, textAlign: 'right', marginBottom: 16, lineHeight: 20 },
+  telegramCard: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(59,130,246,0.1)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.2)',
+    marginBottom: 14,
+  },
+  botAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(59,130,246,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  botUsername: { color: '#93C5FD', fontSize: 15, fontWeight: '700', textAlign: 'right' },
+  activeBadge: { flexDirection: 'row-reverse', alignItems: 'center', gap: 5, marginTop: 3 },
+  greenDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#22C55E' },
+  activeText: { color: '#86EFAC', fontSize: 12 },
+  openBotBtn: {
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  openBotText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  keywordsBox: { gap: 8 },
+  keywordsLabel: { fontSize: 12, color: MUTED, textAlign: 'right' },
+  keywordsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6 },
+  keywordChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(59,130,246,0.1)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.15)',
+  },
+  keywordText: { color: '#93C5FD', fontSize: 12 },
 });
