@@ -22,7 +22,7 @@ const MUTED = '#9CA3AF';
 
 export default function PreviewScreen() {
   const insets = useSafeAreaInsets();
-  const { generatedMessage, setGeneratedMessage, selectedImage } = useApp();
+  const { generatedMessage, setGeneratedMessage, selectedImage, lastGenerationParams } = useApp();
   const [copied, setCopied] = useState(false);
 
   const regenMutation = useMutation({
@@ -49,6 +49,11 @@ export default function PreviewScreen() {
     }
   };
 
+  const handleRegenerate = () => {
+    if (!lastGenerationParams) return;
+    regenMutation.mutate({ ...lastGenerationParams, is_regenerate: true });
+  };
+
   const webTop = Platform.OS === 'web' ? 67 : 0;
 
   if (!generatedMessage) {
@@ -69,7 +74,7 @@ export default function PreviewScreen() {
     <View style={[styles.container, { paddingTop: webTop }]}>
       <ScrollView
         contentContainerStyle={[styles.content, {
-          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 80),
+          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 90),
         }]}
       >
         {selectedImage && (
@@ -104,14 +109,14 @@ export default function PreviewScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.iconActionBtn}
-          onPress={() => regenMutation.mutate({ is_regenerate: true })}
-          disabled={regenMutation.isPending}
+          style={[styles.iconActionBtn, !lastGenerationParams && styles.disabledBtn]}
+          onPress={handleRegenerate}
+          disabled={regenMutation.isPending || !lastGenerationParams}
         >
           {regenMutation.isPending ? (
             <ActivityIndicator color={GOLD} size="small" />
           ) : (
-            <Ionicons name="refresh-outline" size={20} color={GOLD} />
+            <Ionicons name="refresh-outline" size={20} color={lastGenerationParams ? GOLD : MUTED} />
           )}
         </TouchableOpacity>
       </View>
@@ -200,4 +205,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   copiedBtn: { borderColor: '#22C55E' },
+  disabledBtn: { opacity: 0.4 },
 });

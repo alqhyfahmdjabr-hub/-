@@ -9,8 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useApp } from '@/lib/AppContext';
-import { apiRequest, getApiUrl } from '@/lib/query-client';
+import { useApp, GenerationParams } from '@/lib/AppContext';
+import { apiRequest } from '@/lib/query-client';
 
 const DARK = '#0A0A0A';
 const CARD = '#141414';
@@ -31,7 +31,7 @@ interface GenerateResponse { message: string; ai_used?: boolean; }
 
 export default function GeneratorScreen() {
   const insets = useSafeAreaInsets();
-  const { setGeneratedMessage, selectedImage, setSelectedImage, setLastPriceId } = useApp();
+  const { setGeneratedMessage, selectedImage, setSelectedImage, setLastPriceId, setLastGenerationParams } = useApp();
 
   const [sellPrice, setSellPrice] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
@@ -60,8 +60,9 @@ export default function GeneratorScreen() {
 
   const generateMutation = useMutation({
     mutationFn: (data: object) => apiRequest<GenerateResponse>('/api/generate-message', 'POST', data),
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       setGeneratedMessage(data.message);
+      setLastGenerationParams(variables as GenerationParams);
       if (Platform.OS !== 'web') await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await savePriceMutation.mutateAsync({
         buy_price: buyPrice, sell_price: sellPrice, karat, currency,
