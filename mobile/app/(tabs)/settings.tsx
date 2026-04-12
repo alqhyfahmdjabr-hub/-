@@ -58,8 +58,8 @@ export default function SettingsScreen() {
   });
 
   const broadcastMutation = useMutation({
-    mutationFn: () => apiRequest('/api/bot/broadcast', 'POST'),
-    onSuccess: (data: { sent_to: number }) => {
+    mutationFn: () => apiRequest<{ sent_to: number }>('/api/bot/broadcast', 'POST'),
+    onSuccess: (data) => {
       refetchStats();
       Alert.alert('تم الإرسال', `تم بث الأسعار لـ ${data.sent_to} مشترك في تيليجرام ✅`);
     },
