@@ -61,6 +61,12 @@ interface ScheduleConfig {
   is_active: boolean;
 }
 
+interface BotStats {
+  subscriber_count: number;
+  last_broadcast: string | null;
+  recent_activity: { action: string; first_name: string | null; username: string | null; created_at: string }[];
+}
+
 const DEFAULT_IMAGE =
   'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1000&auto=format&fit=crop';
 
@@ -107,6 +113,11 @@ export default function App() {
   const [schedule, setSchedule] = useState<ScheduleConfig>({ time_hour: 9, time_minute: 0, is_active: false });
   const [savingSchedule, setSavingSchedule] = useState(false);
 
+  // Bot Stats
+  const [botStats, setBotStats] = useState<BotStats | null>(null);
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Load initial data ---
@@ -118,6 +129,9 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'history') {
       loadHistory();
+    }
+    if (activeTab === 'settings') {
+      loadBotStats();
     }
   }, [activeTab]);
 
@@ -176,6 +190,32 @@ export default function App() {
       });
     } catch (_) {}
     setSavingSchedule(false);
+  };
+
+  const loadBotStats = async () => {
+    try {
+      const res = await fetch('/api/bot/stats');
+      if (res.ok) setBotStats(await res.json());
+    } catch (_) {}
+  };
+
+  const broadcastNow = async () => {
+    setBroadcasting(true);
+    setBroadcastResult(null);
+    try {
+      const res = await fetch('/api/bot/broadcast', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setBroadcastResult(`✅ تم الإرسال لـ ${data.sent_to} مشترك`);
+        loadBotStats();
+      } else {
+        setBroadcastResult(`❌ ${data.error || 'حدث خطأ'}`);
+      }
+    } catch {
+      setBroadcastResult('❌ تعذر الاتصال بالخادم');
+    }
+    setBroadcasting(false);
+    setTimeout(() => setBroadcastResult(null), 4000);
   };
 
   const fetchLiveGoldPrice = async () => {
@@ -953,38 +993,106 @@ ${storeInfo.group_link}`;
               </div>
 
               {/* Telegram Bot Card */}
-              <div className="bg-zinc-900/50 border border-blue-500/20 rounded-2xl p-6">
-                <h2 className="text-lg font-semibold mb-2 flex items-center gap-2 text-blue-400">
-                  <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
-                  بوت تيليجرام — أسعار الذهب التلقائية
-                </h2>
-                <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
-                  بوت بابل على تيليجرام يردّ تلقائياً على عملائك بأسعار الذهب الحالية عند طلبها.
-                </p>
-                <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
-                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                    <span className="text-xl">🤖</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-blue-300">@babel120_bot</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">مفعّل ويعمل الآن</p>
+              <div className="bg-zinc-900/50 border border-blue-500/20 rounded-2xl p-6 space-y-5">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1 flex items-center gap-2 text-blue-400">
+                    <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                    بوت تيليجرام — التحديثات التلقائية
+                  </h2>
+                  <p className="text-sm text-zinc-400 leading-relaxed">
+                    عند تحديث سعر الذهب في التطبيق، يُرسَل تلقائياً لجميع المشتركين في البوت.
+                    وعندما يطلب أي عميل السعر، يردّ البوت فوراً.
+                  </p>
+                </div>
+
+                {/* Bot identity + stats */}
+                <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 text-2xl">🤖</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-blue-300">@babel120_bot</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+                      <span className="text-xs text-green-400">مفعّل ويعمل الآن</span>
+                    </div>
                   </div>
                   <a
                     href="https://t.me/babel120_bot"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mr-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors font-medium"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors font-medium"
                   >
-                    فتح البوت
+                    فتح البوت ↗
                   </a>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-zinc-500 font-medium">الكلمات التي تُشغّل البوت تلقائياً:</p>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-zinc-950 border border-white/5 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-400">
+                      {botStats ? botStats.subscriber_count : '—'}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">مشترك في البوت</p>
+                  </div>
+                  <div className="bg-zinc-950 border border-white/5 rounded-xl p-4 text-center">
+                    <p className="text-sm font-semibold text-zinc-300">
+                      {botStats?.last_broadcast
+                        ? new Date(botStats.last_broadcast).toLocaleString('ar-SA', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+                        : 'لا يوجد بعد'}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">آخر بث للأسعار</p>
+                  </div>
+                </div>
+
+                {/* Manual broadcast button */}
+                <div>
+                  <button
+                    onClick={broadcastNow}
+                    disabled={broadcasting}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-semibold transition-colors"
+                  >
+                    {broadcasting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>📢</span>}
+                    {broadcasting ? 'جاري الإرسال...' : 'بث الأسعار الآن لجميع المشتركين'}
+                  </button>
+                  {broadcastResult && (
+                    <p className="text-center text-sm mt-2 text-zinc-300">{broadcastResult}</p>
+                  )}
+                </div>
+
+                {/* Recent activity */}
+                {botStats && botStats.recent_activity.length > 0 && (
+                  <div>
+                    <p className="text-xs text-zinc-500 font-medium mb-2">آخر طلبات من التليجرام:</p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {botStats.recent_activity.filter(a => a.action === 'price_request').slice(0, 5).map((a, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs px-3 py-2 bg-zinc-950 rounded-lg border border-white/5">
+                          <span className="text-zinc-400">
+                            {a.first_name || a.username || 'مجهول'}
+                            {a.username ? ` (@${a.username})` : ''}
+                          </span>
+                          <span className="text-zinc-600">
+                            {new Date(a.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Keywords */}
+                <div>
+                  <p className="text-xs text-zinc-500 font-medium mb-2">الكلمات التي تُشغّل البوت:</p>
                   <div className="flex flex-wrap gap-2">
                     {['سعر الذهب', 'أسعار', 'كم السعر', 'عيار 21', 'gold price', 'اليوم'].map(kw => (
                       <span key={kw} className="px-3 py-1 bg-zinc-800 rounded-full text-xs text-zinc-300 border border-white/5">{kw}</span>
                     ))}
                   </div>
+                </div>
+
+                {/* How to subscribe instruction */}
+                <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+                  <p className="text-xs text-blue-200/70 leading-relaxed">
+                    📌 <strong>لاشتراك العملاء:</strong> يرسلون <code className="bg-zinc-800 px-1 rounded">/start</code> للبوت ويتلقّون تلقائياً كل تحديث جديد للأسعار.
+                  </p>
                 </div>
               </div>
             </motion.section>

@@ -31,6 +31,12 @@ interface ScheduleConfig {
   is_active: boolean;
 }
 
+interface BotStats {
+  subscriber_count: number;
+  last_broadcast: string | null;
+  recent_activity: { action: string; first_name: string | null; username: string | null; created_at: string }[];
+}
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -43,6 +49,21 @@ export default function SettingsScreen() {
   const { data: schedule } = useQuery<ScheduleConfig>({
     queryKey: ['/api/schedule'],
     queryFn: () => apiRequest('/api/schedule'),
+  });
+
+  const { data: botStats, refetch: refetchStats } = useQuery<BotStats>({
+    queryKey: ['/api/bot/stats'],
+    queryFn: () => apiRequest('/api/bot/stats'),
+    refetchInterval: 30000,
+  });
+
+  const broadcastMutation = useMutation({
+    mutationFn: () => apiRequest('/api/bot/broadcast', 'POST'),
+    onSuccess: (data: { sent_to: number }) => {
+      refetchStats();
+      Alert.alert('تم الإرسال', `تم بث الأسعار لـ ${data.sent_to} مشترك في تيليجرام ✅`);
+    },
+    onError: () => Alert.alert('خطأ', 'تعذر إرسال البث'),
   });
 
   const [form, setForm] = useState<StoreSettings>({
@@ -223,12 +244,13 @@ export default function SettingsScreen() {
       <View style={styles.telegramSection}>
         <View style={styles.telegramHeader}>
           <View style={styles.telegramDot} />
-          <Text style={styles.telegramTitle}>بوت تيليجرام — الأسعار التلقائية</Text>
+          <Text style={styles.telegramTitle}>بوت تيليجرام — التحديثات التلقائية</Text>
         </View>
         <Text style={styles.telegramSub}>
-          البوت يردّ على عملائك تلقائياً بأسعار الذهب عند طلبها
+          عند تحديث السعر في التطبيق يُرسَل تلقائياً للمشتركين. وعندما يطلب عميل السعر يردّ البوت فوراً.
         </Text>
 
+        {/* Bot identity row */}
         <View style={styles.telegramCard}>
           <View style={styles.botAvatar}>
             <Text style={{ fontSize: 22 }}>🤖</Text>
@@ -240,8 +262,65 @@ export default function SettingsScreen() {
               <Text style={styles.activeText}>مفعّل ويعمل الآن</Text>
             </View>
           </View>
+          <TouchableOpacity
+            style={styles.openMiniBtn}
+            onPress={() => Linking.openURL(TELEGRAM_BOT_LINK)}
+          >
+            <Ionicons name="open-outline" size={16} color="#93C5FD" />
+          </TouchableOpacity>
         </View>
 
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{botStats?.subscriber_count ?? '—'}</Text>
+            <Text style={styles.statLabel}>مشترك</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber} numberOfLines={1}>
+              {botStats?.last_broadcast
+                ? new Date(botStats.last_broadcast).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true })
+                : '—'}
+            </Text>
+            <Text style={styles.statLabel}>آخر بث</Text>
+          </View>
+        </View>
+
+        {/* Broadcast button */}
+        <TouchableOpacity
+          style={[styles.broadcastBtn, broadcastMutation.isPending && styles.disabledBtn]}
+          onPress={() => broadcastMutation.mutate()}
+          disabled={broadcastMutation.isPending}
+        >
+          {broadcastMutation.isPending ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={{ fontSize: 18 }}>📢</Text>
+          )}
+          <Text style={styles.broadcastText}>
+            {broadcastMutation.isPending ? 'جاري الإرسال...' : 'بث الأسعار الآن لجميع المشتركين'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Recent price requests */}
+        {botStats && botStats.recent_activity.filter(a => a.action === 'price_request').length > 0 && (
+          <View style={styles.activityBox}>
+            <Text style={styles.activityTitle}>آخر طلبات من تيليجرام:</Text>
+            {botStats.recent_activity.filter(a => a.action === 'price_request').slice(0, 4).map((a, i) => (
+              <View key={i} style={styles.activityRow}>
+                <Text style={styles.activityName}>
+                  {a.first_name || a.username || 'مجهول'}
+                  {a.username ? ` (@${a.username})` : ''}
+                </Text>
+                <Text style={styles.activityTime}>
+                  {new Date(a.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Open bot button */}
         <TouchableOpacity
           style={styles.openBotBtn}
           onPress={() => Linking.openURL(TELEGRAM_BOT_LINK)}
@@ -390,17 +469,71 @@ const styles = StyleSheet.create({
   activeBadge: { flexDirection: 'row-reverse', alignItems: 'center', gap: 5, marginTop: 3 },
   greenDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#22C55E' },
   activeText: { color: '#86EFAC', fontSize: 12 },
-  openBotBtn: {
+  openMiniBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(59,130,246,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row-reverse',
+    gap: 10,
+    marginBottom: 14,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.1)',
+  },
+  statNumber: { fontSize: 20, fontWeight: '800', color: '#93C5FD' },
+  statLabel: { fontSize: 11, color: MUTED, marginTop: 2 },
+  broadcastBtn: {
     backgroundColor: '#2563EB',
     borderRadius: 14,
-    paddingVertical: 13,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     marginBottom: 14,
   },
-  openBotText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  broadcastText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  disabledBtn: { opacity: 0.55 },
+  activityBox: {
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    marginBottom: 14,
+    gap: 6,
+  },
+  activityTitle: { fontSize: 11, color: MUTED, textAlign: 'right', marginBottom: 4 },
+  activityRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  activityName: { fontSize: 12, color: TEXT },
+  activityTime: { fontSize: 11, color: MUTED },
+  openBotBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.4)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  openBotText: { color: '#93C5FD', fontSize: 14, fontWeight: '600' },
   keywordsBox: { gap: 8 },
   keywordsLabel: { fontSize: 12, color: MUTED, textAlign: 'right' },
   keywordsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6 },

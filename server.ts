@@ -19,6 +19,28 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
+// --- DB Init ---
+async function initDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bot_subscribers (
+      id SERIAL PRIMARY KEY,
+      chat_id BIGINT UNIQUE NOT NULL,
+      username TEXT,
+      first_name TEXT,
+      subscribed_at TIMESTAMPTZ DEFAULT NOW(),
+      is_active BOOLEAN DEFAULT TRUE
+    );
+    CREATE TABLE IF NOT EXISTS bot_activity (
+      id SERIAL PRIMARY KEY,
+      chat_id BIGINT,
+      username TEXT,
+      first_name TEXT,
+      action TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+}
+
 // --- Health ---
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -29,7 +51,7 @@ app.get('/api/settings', async (_req, res) => {
   try {
     const result = await pool.query('SELECT * FROM store_settings WHERE id = 1');
     res.json(result.rows[0] || {});
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في جلب الإعدادات' });
   }
 });
@@ -43,7 +65,7 @@ app.put('/api/settings', async (req, res) => {
       [name, contacts, branches, group_link]
     );
     res.json(result.rows[0]);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في حفظ الإعدادات' });
   }
 });
@@ -55,7 +77,7 @@ app.get('/api/gold-prices', async (_req, res) => {
       'SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 50'
     );
     res.json(result.rows);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في جلب الأسعار' });
   }
 });
@@ -68,8 +90,14 @@ app.post('/api/gold-prices', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [buy_price, sell_price, karat, currency, note || '']
     );
-    res.json(result.rows[0]);
-  } catch (err) {
+    const savedPrice = result.rows[0];
+    res.json(savedPrice);
+
+    // Auto-broadcast to all Telegram subscribers (fire and forget)
+    broadcastPriceUpdate(savedPrice).catch(err =>
+      console.error('Broadcast error:', err)
+    );
+  } catch {
     res.status(500).json({ error: 'خطأ في حفظ السعر' });
   }
 });
@@ -78,7 +106,7 @@ app.delete('/api/gold-prices/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM gold_prices WHERE id=$1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في حذف السعر' });
   }
 });
@@ -90,7 +118,7 @@ app.get('/api/messages', async (_req, res) => {
       'SELECT * FROM messages ORDER BY created_at DESC LIMIT 50'
     );
     res.json(result.rows);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في جلب الرسائل' });
   }
 });
@@ -104,7 +132,7 @@ app.post('/api/messages', async (req, res) => {
       [content, gold_price_id || null, image_data || null]
     );
     res.json(result.rows[0]);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في حفظ الرسالة' });
   }
 });
@@ -113,8 +141,40 @@ app.delete('/api/messages/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM messages WHERE id=$1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في حذف الرسالة' });
+  }
+});
+
+// --- Bot Stats API ---
+app.get('/api/bot/stats', async (_req, res) => {
+  try {
+    const [subs, activity, lastPrice] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM bot_subscribers WHERE is_active = TRUE'),
+      pool.query('SELECT * FROM bot_activity ORDER BY created_at DESC LIMIT 10'),
+      pool.query('SELECT * FROM bot_activity WHERE action = \'broadcast\' ORDER BY created_at DESC LIMIT 1'),
+    ]);
+    res.json({
+      subscriber_count: parseInt(subs.rows[0].count),
+      recent_activity: activity.rows,
+      last_broadcast: lastPrice.rows[0]?.created_at || null,
+    });
+  } catch {
+    res.status(500).json({ error: 'خطأ في جلب إحصائيات البوت' });
+  }
+});
+
+// Manual broadcast endpoint
+app.post('/api/bot/broadcast', async (_req, res) => {
+  try {
+    const priceResult = await pool.query('SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 1');
+    if (priceResult.rows.length === 0) {
+      return res.status(400).json({ error: 'لا توجد أسعار للبث' });
+    }
+    const count = await broadcastPriceUpdate(priceResult.rows[0]);
+    res.json({ success: true, sent_to: count });
+  } catch (err) {
+    res.status(500).json({ error: 'خطأ في البث' });
   }
 });
 
@@ -164,7 +224,7 @@ ${is_regenerate ? 'ملاحظة: إعادة صياغة بأسلوب مختلف.'
   }
 });
 
-// --- Live Gold Price (International Spot Price) ---
+// --- Live Gold Price ---
 app.get('/api/gold-price/live', async (_req, res) => {
   try {
     const response = await fetch('https://api.metals.live/v1/spot/gold');
@@ -177,7 +237,7 @@ app.get('/api/gold-price/live', async (_req, res) => {
       price_usd_per_gram: +(priceUSD / 31.1035).toFixed(2),
       note: 'السعر الدولي للذهب عيار 24 بالدولار الأمريكي للغرام',
     });
-  } catch (err) {
+  } catch {
     res.status(503).json({ error: 'تعذّر جلب السعر الدولي الآن. حاول لاحقاً.' });
   }
 });
@@ -187,7 +247,7 @@ app.get('/api/schedule', async (_req, res) => {
   try {
     const result = await pool.query('SELECT * FROM scheduled_tasks ORDER BY id LIMIT 1');
     res.json(result.rows[0] || { time_hour: 9, time_minute: 0, is_active: false });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في جلب إعدادات الجدولة' });
   }
 });
@@ -202,7 +262,7 @@ app.put('/api/schedule', async (req, res) => {
     );
     setupCronJob(time_hour, time_minute, is_active);
     res.json({ success: true, time_hour, time_minute, is_active });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'خطأ في حفظ إعدادات الجدولة' });
   }
 });
@@ -211,17 +271,11 @@ app.put('/api/schedule', async (req, res) => {
 let currentCronJob: ReturnType<typeof cron.schedule> | null = null;
 
 function setupCronJob(hour: number, minute: number, isActive: boolean) {
-  if (currentCronJob) {
-    currentCronJob.stop();
-    currentCronJob = null;
-  }
-  if (!isActive) {
-    console.log('⏱ الجدولة التلقائية غير مفعّلة');
-    return;
-  }
+  if (currentCronJob) { currentCronJob.stop(); currentCronJob = null; }
+  if (!isActive) { console.log('⏱ الجدولة التلقائية غير مفعّلة'); return; }
   const cronExpr = `${minute} ${hour} * * *`;
   currentCronJob = cron.schedule(cronExpr, () => {
-    console.log(`⏰ [${new Date().toISOString()}] تذكير: حان وقت نشر تحديث الأسعار اليومي!`);
+    console.log(`⏰ [${new Date().toISOString()}] حان وقت نشر تحديث الأسعار اليومي!`);
   }, { timezone: 'Asia/Aden' });
   console.log(`✅ الجدولة مفعّلة: كل يوم الساعة ${hour}:${String(minute).padStart(2, '0')}`);
 }
@@ -243,9 +297,11 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const BOT_USERNAME = 'babel120_bot';
 const BOT_LINK = `https://t.me/${BOT_USERNAME}`;
 
+let telegramBot: TelegramBot | null = null;
+
 const PRICE_KEYWORDS = [
   'سعر', 'أسعار', 'اسعار', 'ذهب', 'عيار', 'gold', 'price',
-  'كم', 'بكم', 'غرام', 'بيع', 'شراء', 'اليوم', 'الان', 'الآن',
+  'كم', 'بكم', 'غرام', 'بيع', 'شراء', 'اليوم', 'الان', 'الآن', 'احدث',
 ];
 
 function containsPriceKeyword(text: string): boolean {
@@ -254,44 +310,116 @@ function containsPriceKeyword(text: string): boolean {
 }
 
 async function getLatestPriceMessage(): Promise<string> {
-  try {
-    const [pricesResult, settingsResult] = await Promise.all([
-      pool.query('SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 1'),
-      pool.query('SELECT * FROM store_settings WHERE id = 1'),
-    ]);
+  const [pricesResult, settingsResult] = await Promise.all([
+    pool.query('SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 1'),
+    pool.query('SELECT * FROM store_settings WHERE id = 1'),
+  ]);
+  const settings = settingsResult.rows[0] || {};
+  const storeName = settings.name || 'مجوهرات بابل';
+  const contacts = settings.contacts || '';
+  const branches = settings.branches || '';
+  const groupLink = settings.group_link || '';
 
-    const settings = settingsResult.rows[0] || {};
-    const storeName = settings.name || 'مجوهرات بابل';
-    const contacts = settings.contacts || '';
-    const branches = settings.branches || '';
-    const groupLink = settings.group_link || '';
-
-    if (pricesResult.rows.length === 0) {
-      return `💎 *${storeName}*\n\nعذراً، لا توجد أسعار محدَّثة حالياً.\nتواصل معنا مباشرة:\n${contacts || 'راجع قناتنا للأسعار'}`;
-    }
-
-    const price = pricesResult.rows[0];
-    const now = new Date();
-    const date = now.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-    const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-    let msg = `✨ *${storeName}* ✨\n\n`;
-    msg += `💰 *أسعار الذهب لهذا اليوم*\n\n`;
-    msg += `🏅 العيار: *${price.karat}*\n`;
-    msg += `📈 سعر البيع: *${price.sell_price} ${price.currency}* للغرام\n`;
-    msg += `📉 سعر الشراء: *${price.buy_price} ${price.currency}* للغرام\n`;
-    if (price.note) msg += `\n📌 ${price.note}\n`;
-    msg += `\n📅 ${date}  ⏰ ${time}\n`;
-    if (branches) msg += `\n📍 *فروعنا:*\n${branches}\n`;
-    if (contacts) msg += `\n📞 *للتواصل:*\n${contacts}\n`;
-    msg += `\n💎 نسعد بخدمتكم دائماً!`;
-    if (groupLink) msg += `\n\n🔗 ${groupLink}`;
-
-    return msg;
-  } catch (err) {
-    console.error('خطأ في جلب السعر للبوت:', err);
-    return '⚠️ تعذّر جلب الأسعار الآن. حاول مرة أخرى.';
+  if (pricesResult.rows.length === 0) {
+    return `💎 *${storeName}*\n\nعذراً، لا توجد أسعار محدَّثة حالياً.\nتواصل معنا:\n${contacts || 'راجع قناتنا'}`;
   }
+
+  const price = pricesResult.rows[0];
+  return formatPriceMessage(price, { storeName, contacts, branches, groupLink, isUpdate: false });
+}
+
+function formatPriceMessage(price: {
+  sell_price: string; buy_price: string; karat: string; currency: string; note?: string;
+}, opts: { storeName: string; contacts: string; branches: string; groupLink: string; isUpdate: boolean }): string {
+  const now = new Date();
+  const date = now.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
+  const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  let msg = opts.isUpdate
+    ? `🔔 *تحديث أسعار الذهب*\n\n`
+    : `💰 *أسعار الذهب*\n\n`;
+
+  msg += `✨ *${opts.storeName}* ✨\n\n`;
+  msg += `🏅 العيار: *${price.karat}*\n`;
+  msg += `📈 سعر البيع: *${price.sell_price} ${price.currency}* للغرام\n`;
+  msg += `📉 سعر الشراء: *${price.buy_price} ${price.currency}* للغرام\n`;
+  if (price.note) msg += `\n📌 ${price.note}\n`;
+  msg += `\n📅 ${date}  ⏰ ${time}\n`;
+  if (opts.branches) msg += `\n📍 *فروعنا:*\n${opts.branches}\n`;
+  if (opts.contacts) msg += `\n📞 *للتواصل:*\n${opts.contacts}\n`;
+  msg += `\n💎 نسعد بخدمتكم دائماً!`;
+  if (opts.groupLink) msg += `\n\n🔗 ${opts.groupLink}`;
+  return msg;
+}
+
+async function broadcastPriceUpdate(price: {
+  sell_price: string; buy_price: string; karat: string; currency: string; note?: string;
+}): Promise<number> {
+  if (!telegramBot) return 0;
+
+  const [subscribersResult, settingsResult] = await Promise.all([
+    pool.query('SELECT chat_id FROM bot_subscribers WHERE is_active = TRUE'),
+    pool.query('SELECT * FROM store_settings WHERE id = 1'),
+  ]);
+
+  if (subscribersResult.rows.length === 0) {
+    console.log('📭 لا يوجد مشتركون لإرسال التحديث إليهم');
+    return 0;
+  }
+
+  const settings = settingsResult.rows[0] || {};
+  const message = formatPriceMessage(price, {
+    storeName: settings.name || 'مجوهرات بابل',
+    contacts: settings.contacts || '',
+    branches: settings.branches || '',
+    groupLink: settings.group_link || '',
+    isUpdate: true,
+  });
+
+  let sentCount = 0;
+  for (const row of subscribersResult.rows) {
+    try {
+      await telegramBot.sendMessage(row.chat_id, message, { parse_mode: 'Markdown' });
+      sentCount++;
+    } catch (err) {
+      const errMsg = (err as Error).message || '';
+      if (errMsg.includes('blocked') || errMsg.includes('chat not found') || errMsg.includes('deactivated')) {
+        await pool.query('UPDATE bot_subscribers SET is_active=FALSE WHERE chat_id=$1', [row.chat_id]);
+      }
+      console.error(`خطأ في إرسال لـ ${row.chat_id}:`, errMsg);
+    }
+  }
+
+  // Log broadcast activity
+  await pool.query(
+    `INSERT INTO bot_activity (action, chat_id, first_name) VALUES ('broadcast', 0, $1)`,
+    [`تم الإرسال لـ ${sentCount} مشترك`]
+  );
+
+  console.log(`📢 تم البث لـ ${sentCount} من أصل ${subscribersResult.rows.length} مشترك`);
+  return sentCount;
+}
+
+async function saveSubscriber(chatId: number, username: string | undefined, firstName: string | undefined) {
+  await pool.query(
+    `INSERT INTO bot_subscribers (chat_id, username, first_name, is_active)
+     VALUES ($1, $2, $3, TRUE)
+     ON CONFLICT (chat_id) DO UPDATE SET is_active=TRUE, username=$2, first_name=$3`,
+    [chatId, username || null, firstName || null]
+  );
+  await pool.query(
+    `INSERT INTO bot_activity (chat_id, username, first_name, action)
+     VALUES ($1, $2, $3, 'subscribe')`,
+    [chatId, username || null, firstName || null]
+  );
+}
+
+async function logPriceRequest(chatId: number, username: string | undefined, firstName: string | undefined) {
+  await pool.query(
+    `INSERT INTO bot_activity (chat_id, username, first_name, action)
+     VALUES ($1, $2, $3, 'price_request')`,
+    [chatId, username || null, firstName || null]
+  );
 }
 
 function initTelegramBot() {
@@ -300,35 +428,69 @@ function initTelegramBot() {
     return;
   }
 
-  const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+  telegramBot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-  bot.onText(/\/start/, async (msg) => {
+  // /start command
+  telegramBot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const firstName = msg.from?.first_name || 'عزيزنا';
+    try {
+      await saveSubscriber(chatId, msg.from?.username, msg.from?.first_name);
+    } catch {}
+
     const welcomeMsg =
       `مرحباً ${firstName}! 👋\n\n` +
       `أنا بوت *مجوهرات بابل* 💎\n\n` +
-      `يمكنني مساعدتك في:\n` +
-      `• معرفة أسعار الذهب اليومية\n\n` +
-      `فقط اكتب أي من هذه الرسائل:\n` +
+      `✅ تم تفعيل الاشتراك في تحديثات الأسعار!\n` +
+      `ستصلك رسالة تلقائية في كل مرة يتم فيها تحديث سعر الذهب.\n\n` +
+      `يمكنك أيضاً السؤال عن السعر في أي وقت:\n` +
       `_"كم سعر الذهب اليوم؟"_\n` +
-      `_"أسعار الذهب"_\n` +
-      `_"سعر عيار 21"_\n\n` +
-      `وسأردّ عليك فوراً! ✨`;
-    await bot.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
+      `_"أسعار الذهب"_\n\n` +
+      `📌 أوامر أخرى:\n` +
+      `/unsubscribe — إيقاف الاشتراك\n` +
+      `/price — آخر سعر للذهب\n\n` +
+      `💎 شكراً لاختياركم مجوهرات بابل!`;
+    await telegramBot!.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
   });
 
-  bot.on('message', async (msg) => {
+  // /price command
+  telegramBot.onText(/\/price/, async (msg) => {
+    const chatId = msg.chat.id;
+    try {
+      await telegramBot!.sendChatAction(chatId, 'typing');
+      const priceMsg = await getLatestPriceMessage();
+      await telegramBot!.sendMessage(chatId, priceMsg, { parse_mode: 'Markdown' });
+      await logPriceRequest(chatId, msg.from?.username, msg.from?.first_name);
+    } catch (err) {
+      console.error('خطأ في /price:', err);
+    }
+  });
+
+  // /unsubscribe command
+  telegramBot.onText(/\/unsubscribe/, async (msg) => {
+    const chatId = msg.chat.id;
+    try {
+      await pool.query('UPDATE bot_subscribers SET is_active=FALSE WHERE chat_id=$1', [chatId]);
+      await telegramBot!.sendMessage(
+        chatId,
+        '❌ تم إيقاف الاشتراك.\nلن تصلك تحديثات الأسعار بعد الآن.\n\nللعودة: /start',
+        { parse_mode: 'Markdown' }
+      );
+    } catch {}
+  });
+
+  // General messages (non-commands)
+  telegramBot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text || '';
-
     if (text.startsWith('/')) return;
 
     if (containsPriceKeyword(text)) {
       try {
-        await bot.sendChatAction(chatId, 'typing');
+        await telegramBot!.sendChatAction(chatId, 'typing');
         const priceMsg = await getLatestPriceMessage();
-        await bot.sendMessage(chatId, priceMsg, { parse_mode: 'Markdown' });
+        await telegramBot!.sendMessage(chatId, priceMsg, { parse_mode: 'Markdown' });
+        await logPriceRequest(chatId, msg.from?.username, msg.from?.first_name).catch(() => {});
       } catch (err) {
         console.error('خطأ في إرسال رسالة البوت:', err);
       }
@@ -338,12 +500,13 @@ function initTelegramBot() {
     const hint =
       `💬 شكراً على تواصلك!\n\n` +
       `لمعرفة أسعار الذهب، اكتب:\n` +
-      `*"سعر الذهب"* أو *"أسعار الذهب اليوم"*\n\n` +
-      `وسأردّ عليك فوراً 💎`;
-    await bot.sendMessage(chatId, hint, { parse_mode: 'Markdown' });
+      `*"سعر الذهب"* أو اضغط /price\n\n` +
+      `للاشتراك في التحديثات التلقائية: /start\n\n` +
+      `💎 نسعد بخدمتكم!`;
+    await telegramBot!.sendMessage(chatId, hint, { parse_mode: 'Markdown' });
   });
 
-  bot.on('polling_error', (err) => {
+  telegramBot.on('polling_error', (err) => {
     console.error('Telegram polling error:', (err as Error).message);
   });
 
@@ -354,6 +517,7 @@ function initTelegramBot() {
 // --- Start Server ---
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 الخادم يعمل على المنفذ ${PORT}`);
+  await initDatabase();
   await initCronFromDB();
   initTelegramBot();
 });
