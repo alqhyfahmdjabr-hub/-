@@ -90,9 +90,10 @@ localPort = 8081
 externalPort = 8081
 
 [deployment]
-deploymentTarget = "static"
+deploymentTarget = "vm"
 build = ["npm", "run", "build"]
 publicDir = "dist"
+run = ["npm", "run", "start"]
 
 [userenv]
 

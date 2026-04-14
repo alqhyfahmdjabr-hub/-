@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { Pool } from 'pg';
 import cron from 'node-cron';
 import * as dotenv from 'dotenv';
@@ -9,7 +10,8 @@ import TelegramBot from 'node-telegram-bot-api';
 dotenv.config();
 
 const app = express();
-const PORT = 3001;
+const IS_PROD = process.env.NODE_ENV === 'production';
+const PORT = parseInt(process.env.PORT || (IS_PROD ? '5000' : '3001'));
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
@@ -670,9 +672,20 @@ function initTelegramBot() {
   console.log(`🔗 رابط البوت: ${BOT_LINK}`);
 }
 
+// --- Serve Frontend in Production ---
+if (IS_PROD) {
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(distPath, 'index.html'));
+    }
+  });
+}
+
 // --- Start Server ---
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 الخادم يعمل على المنفذ ${PORT}`);
+  console.log(`🚀 الخادم يعمل على المنفذ ${PORT} (${IS_PROD ? 'إنتاج' : 'تطوير'})`);
   await initDatabase();
   await initCronFromDB();
   initTelegramBot();
