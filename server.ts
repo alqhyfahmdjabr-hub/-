@@ -309,23 +309,20 @@ function containsPriceKeyword(text: string): boolean {
   return PRICE_KEYWORDS.some(kw => lower.includes(kw));
 }
 
-async function getLatestPriceMessage(): Promise<string> {
-  const [pricesResult, settingsResult] = await Promise.all([
-    pool.query('SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 1'),
-    pool.query('SELECT * FROM store_settings WHERE id = 1'),
-  ]);
-  const settings = settingsResult.rows[0] || {};
-  const storeName = settings.name || 'مجوهرات بابل';
-  const contacts = settings.contacts || '';
-  const branches = settings.branches || '';
-  const groupLink = settings.group_link || '';
-
-  if (pricesResult.rows.length === 0) {
-    return `💎 *${storeName}*\n\nعذراً، لا توجد أسعار محدَّثة حالياً.\nتواصل معنا:\n${contacts || 'راجع قناتنا'}`;
+// Fetch the latest saved message image as Buffer (for sendPhoto)
+async function getLatestImageBuffer(): Promise<Buffer | null> {
+  try {
+    const result = await pool.query(
+      `SELECT image_data FROM messages WHERE image_data IS NOT NULL ORDER BY created_at DESC LIMIT 1`
+    );
+    if (result.rows.length === 0 || !result.rows[0].image_data) return null;
+    const raw: string = result.rows[0].image_data;
+    // strip data:image/...;base64, prefix if present
+    const base64 = raw.includes(',') ? raw.split(',')[1] : raw;
+    return Buffer.from(base64, 'base64');
+  } catch {
+    return null;
   }
-
-  const price = pricesResult.rows[0];
-  return formatPriceMessage(price, { storeName, contacts, branches, groupLink, isUpdate: false });
 }
 
 function formatPriceMessage(price: {
@@ -337,19 +334,48 @@ function formatPriceMessage(price: {
 
   let msg = opts.isUpdate
     ? `🔔 *تحديث أسعار الذهب*\n\n`
-    : `💰 *أسعار الذهب*\n\n`;
+    : `💰 *أسعار الذهب الآن*\n\n`;
 
-  msg += `✨ *${opts.storeName}* ✨\n\n`;
+  msg += `✨ *${opts.storeName}* ✨\n`;
+  msg += `━━━━━━━━━━━━━━━━\n`;
   msg += `🏅 العيار: *${price.karat}*\n`;
-  msg += `📈 سعر البيع: *${price.sell_price} ${price.currency}* للغرام\n`;
-  msg += `📉 سعر الشراء: *${price.buy_price} ${price.currency}* للغرام\n`;
-  if (price.note) msg += `\n📌 ${price.note}\n`;
-  msg += `\n📅 ${date}  ⏰ ${time}\n`;
+  msg += `📈 سعر البيع: *${Number(price.sell_price).toLocaleString('ar-SA')} ${price.currency}* للغرام\n`;
+  msg += `📉 سعر الشراء: *${Number(price.buy_price).toLocaleString('ar-SA')} ${price.currency}* للغرام\n`;
+  if (price.note) msg += `\n📌 _${price.note}_\n`;
+  msg += `\n📅 ${date}\n⏰ ${time}\n`;
   if (opts.branches) msg += `\n📍 *فروعنا:*\n${opts.branches}\n`;
   if (opts.contacts) msg += `\n📞 *للتواصل:*\n${opts.contacts}\n`;
-  msg += `\n💎 نسعد بخدمتكم دائماً!`;
-  if (opts.groupLink) msg += `\n\n🔗 ${opts.groupLink}`;
+  msg += `\n━━━━━━━━━━━━━━━━\n`;
+  msg += `💎 _نسعد بخدمتكم دائماً_`;
+  if (opts.groupLink) msg += `\n🔗 ${opts.groupLink}`;
   return msg;
+}
+
+// Sends a price message (with image if available) to a single chat
+async function sendPriceToChat(
+  chatId: number,
+  isUpdate: boolean,
+  imageBuffer: Buffer | null,
+  priceText: string
+): Promise<void> {
+  const inlineKeyboard = {
+    inline_keyboard: [[
+      { text: '💰 السعر الآن', callback_data: 'get_price' },
+      { text: '🔕 إلغاء الاشتراك', callback_data: 'unsubscribe' },
+    ]],
+  };
+  if (imageBuffer) {
+    await telegramBot!.sendPhoto(chatId, imageBuffer, {
+      caption: priceText,
+      parse_mode: 'Markdown',
+      reply_markup: inlineKeyboard,
+    });
+  } else {
+    await telegramBot!.sendMessage(chatId, priceText, {
+      parse_mode: 'Markdown',
+      reply_markup: inlineKeyboard,
+    });
+  }
 }
 
 async function broadcastPriceUpdate(price: {
@@ -357,9 +383,10 @@ async function broadcastPriceUpdate(price: {
 }): Promise<number> {
   if (!telegramBot) return 0;
 
-  const [subscribersResult, settingsResult] = await Promise.all([
+  const [subscribersResult, settingsResult, imageBuffer] = await Promise.all([
     pool.query('SELECT chat_id FROM bot_subscribers WHERE is_active = TRUE'),
     pool.query('SELECT * FROM store_settings WHERE id = 1'),
+    getLatestImageBuffer(),
   ]);
 
   if (subscribersResult.rows.length === 0) {
@@ -379,7 +406,7 @@ async function broadcastPriceUpdate(price: {
   let sentCount = 0;
   for (const row of subscribersResult.rows) {
     try {
-      await telegramBot.sendMessage(row.chat_id, message, { parse_mode: 'Markdown' });
+      await sendPriceToChat(row.chat_id, true, imageBuffer, message);
       sentCount++;
     } catch (err) {
       const errMsg = (err as Error).message || '';
@@ -390,7 +417,6 @@ async function broadcastPriceUpdate(price: {
     }
   }
 
-  // Log broadcast activity
   await pool.query(
     `INSERT INTO bot_activity (action, chat_id, first_name) VALUES ('broadcast', 0, $1)`,
     [`تم الإرسال لـ ${sentCount} مشترك`]
@@ -398,6 +424,31 @@ async function broadcastPriceUpdate(price: {
 
   console.log(`📢 تم البث لـ ${sentCount} من أصل ${subscribersResult.rows.length} مشترك`);
   return sentCount;
+}
+
+async function getPriceTextAndImage(): Promise<{ text: string; imageBuffer: Buffer | null }> {
+  const [pricesResult, settingsResult, imageBuffer] = await Promise.all([
+    pool.query('SELECT * FROM gold_prices ORDER BY created_at DESC LIMIT 1'),
+    pool.query('SELECT * FROM store_settings WHERE id = 1'),
+    getLatestImageBuffer(),
+  ]);
+  const settings = settingsResult.rows[0] || {};
+  const storeName = settings.name || 'مجوهرات بابل';
+  const contacts = settings.contacts || '';
+  const branches = settings.branches || '';
+  const groupLink = settings.group_link || '';
+
+  if (pricesResult.rows.length === 0) {
+    return {
+      text: `💎 *${storeName}*\n\nعذراً، لا توجد أسعار محدَّثة حالياً.\n📞 ${contacts || 'تواصل معنا عبر قنواتنا'}`,
+      imageBuffer: null,
+    };
+  }
+  const price = pricesResult.rows[0];
+  return {
+    text: formatPriceMessage(price, { storeName, contacts, branches, groupLink, isUpdate: false }),
+    imageBuffer,
+  };
 }
 
 async function saveSubscriber(chatId: number, username: string | undefined, firstName: string | undefined) {
@@ -430,53 +481,152 @@ function initTelegramBot() {
 
   telegramBot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-  // /start command
+  // Register commands in Telegram menu
+  telegramBot.setMyCommands([
+    { command: 'start',       description: '▶️ بدء الاشتراك والترحيب' },
+    { command: 'price',       description: '💰 آخر سعر للذهب مع الصورة' },
+    { command: 'subscribe',   description: '🔔 تفعيل التحديثات التلقائية' },
+    { command: 'unsubscribe', description: '🔕 إيقاف التحديثات التلقائية' },
+    { command: 'help',        description: '❓ المساعدة وقائمة الأوامر' },
+  ]).catch(() => {});
+
+  // /start
   telegramBot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const firstName = msg.from?.first_name || 'عزيزنا';
-    try {
-      await saveSubscriber(chatId, msg.from?.username, msg.from?.first_name);
-    } catch {}
+    try { await saveSubscriber(chatId, msg.from?.username, msg.from?.first_name); } catch {}
+
+    const settingsResult = await pool.query('SELECT * FROM store_settings WHERE id = 1').catch(() => ({ rows: [] }));
+    const storeName = settingsResult.rows[0]?.name || 'مجوهرات بابل';
 
     const welcomeMsg =
-      `مرحباً ${firstName}! 👋\n\n` +
-      `أنا بوت *مجوهرات بابل* 💎\n\n` +
-      `✅ تم تفعيل الاشتراك في تحديثات الأسعار!\n` +
-      `ستصلك رسالة تلقائية في كل مرة يتم فيها تحديث سعر الذهب.\n\n` +
-      `يمكنك أيضاً السؤال عن السعر في أي وقت:\n` +
-      `_"كم سعر الذهب اليوم؟"_\n` +
-      `_"أسعار الذهب"_\n\n` +
-      `📌 أوامر أخرى:\n` +
-      `/unsubscribe — إيقاف الاشتراك\n` +
-      `/price — آخر سعر للذهب\n\n` +
-      `💎 شكراً لاختياركم مجوهرات بابل!`;
-    await telegramBot!.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
+      `👋 *أهلاً وسهلاً ${firstName}!*\n\n` +
+      `💎 *${storeName}*\n` +
+      `━━━━━━━━━━━━━━━━\n\n` +
+      `✅ *تم تفعيل اشتراكك بنجاح!*\n` +
+      `ستصلك تحديثات أسعار الذهب تلقائياً مع الصورة في كل مرة يتم فيها التحديث.\n\n` +
+      `🗣 *يمكنك السؤال عن السعر في أي وقت بكتابة:*\n` +
+      `_"كم سعر الذهب اليوم؟"_  أو  _"أسعار الذهب"_\n\n` +
+      `━━━━━━━━━━━━━━━━\n` +
+      `📌 *الأوامر المتاحة:*\n` +
+      `/price — 💰 آخر سعر مع الصورة\n` +
+      `/subscribe — 🔔 تفعيل التحديثات\n` +
+      `/unsubscribe — 🔕 إيقاف التحديثات\n` +
+      `/help — ❓ المساعدة\n\n` +
+      `💎 _شكراً لاختياركم ${storeName}!_`;
+
+    await telegramBot!.sendMessage(chatId, welcomeMsg, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '💰 اعرض السعر الآن', callback_data: 'get_price' }],
+          [{ text: '❓ المساعدة', callback_data: 'help' }],
+        ],
+      },
+    });
   });
 
-  // /price command
+  // /subscribe
+  telegramBot.onText(/\/subscribe/, async (msg) => {
+    const chatId = msg.chat.id;
+    try { await saveSubscriber(chatId, msg.from?.username, msg.from?.first_name); } catch {}
+    await telegramBot!.sendMessage(
+      chatId,
+      `✅ *تم تفعيل الاشتراك!*\n\nستصلك تحديثات الأسعار تلقائياً مع الصورة.\n\nلإيقاف الاشتراك: /unsubscribe`,
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  // /price
   telegramBot.onText(/\/price/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-      await telegramBot!.sendChatAction(chatId, 'typing');
-      const priceMsg = await getLatestPriceMessage();
-      await telegramBot!.sendMessage(chatId, priceMsg, { parse_mode: 'Markdown' });
+      await telegramBot!.sendChatAction(chatId, 'upload_photo');
+      const { text, imageBuffer } = await getPriceTextAndImage();
+      await sendPriceToChat(chatId, false, imageBuffer, text);
       await logPriceRequest(chatId, msg.from?.username, msg.from?.first_name);
     } catch (err) {
       console.error('خطأ في /price:', err);
     }
   });
 
-  // /unsubscribe command
+  // /unsubscribe
   telegramBot.onText(/\/unsubscribe/, async (msg) => {
     const chatId = msg.chat.id;
     try {
       await pool.query('UPDATE bot_subscribers SET is_active=FALSE WHERE chat_id=$1', [chatId]);
       await telegramBot!.sendMessage(
         chatId,
-        '❌ تم إيقاف الاشتراك.\nلن تصلك تحديثات الأسعار بعد الآن.\n\nللعودة: /start',
-        { parse_mode: 'Markdown' }
+        `🔕 *تم إيقاف الاشتراك*\n\nلن تصلك تحديثات الأسعار بعد الآن.\n\n_للعودة اضغط /subscribe أو /start_`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{ text: '🔔 إعادة الاشتراك', callback_data: 'subscribe' }]],
+          },
+        }
       );
     } catch {}
+  });
+
+  // /help
+  telegramBot.onText(/\/help/, async (msg) => {
+    const chatId = msg.chat.id;
+    const helpMsg =
+      `❓ *المساعدة — مجوهرات بابل*\n` +
+      `━━━━━━━━━━━━━━━━\n\n` +
+      `🤖 *هذا البوت يتيح لك:*\n` +
+      `• تلقّي أسعار الذهب تلقائياً مع الصورة\n` +
+      `• الاستفسار عن السعر في أي وقت\n\n` +
+      `📌 *الأوامر:*\n` +
+      `/price — 💰 آخر سعر للذهب مع الصورة\n` +
+      `/subscribe — 🔔 تفعيل التحديثات التلقائية\n` +
+      `/unsubscribe — 🔕 إيقاف التحديثات\n` +
+      `/start — ▶️ إعادة بدء البوت\n\n` +
+      `💬 *أو اكتب ببساطة:*\n` +
+      `_"سعر الذهب"_ أو _"كم العيار 21"_ وسيردّ البوت فوراً`;
+
+    await telegramBot!.sendMessage(chatId, helpMsg, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '💰 السعر الآن', callback_data: 'get_price' }],
+          [{ text: '🔔 اشترك', callback_data: 'subscribe' }, { text: '🔕 إلغاء', callback_data: 'unsubscribe' }],
+        ],
+      },
+    });
+  });
+
+  // Inline keyboard callbacks
+  telegramBot.on('callback_query', async (query) => {
+    const chatId = query.message?.chat.id;
+    if (!chatId) return;
+    const data = query.data;
+
+    try {
+      if (data === 'get_price') {
+        await telegramBot!.sendChatAction(chatId, 'upload_photo');
+        const { text, imageBuffer } = await getPriceTextAndImage();
+        await sendPriceToChat(chatId, false, imageBuffer, text);
+        await logPriceRequest(chatId, query.from?.username, query.from?.first_name).catch(() => {});
+      } else if (data === 'subscribe') {
+        await saveSubscriber(chatId, query.from?.username, query.from?.first_name);
+        await telegramBot!.sendMessage(chatId, `✅ *تم تفعيل الاشتراك!*\nستصلك التحديثات تلقائياً.`, { parse_mode: 'Markdown' });
+      } else if (data === 'unsubscribe') {
+        await pool.query('UPDATE bot_subscribers SET is_active=FALSE WHERE chat_id=$1', [chatId]);
+        await telegramBot!.sendMessage(chatId, `🔕 *تم إيقاف الاشتراك.*\n\nللعودة: /subscribe`, { parse_mode: 'Markdown' });
+      } else if (data === 'help') {
+        const helpMsg =
+          `❓ *المساعدة*\n\n` +
+          `/price — 💰 آخر سعر للذهب\n` +
+          `/subscribe — 🔔 تفعيل التحديثات\n` +
+          `/unsubscribe — 🔕 إيقاف التحديثات\n\n` +
+          `💬 أو اكتب _"سعر الذهب"_ مباشرة`;
+        await telegramBot!.sendMessage(chatId, helpMsg, { parse_mode: 'Markdown' });
+      }
+    } catch (err) {
+      console.error('callback_query error:', err);
+    }
+    await telegramBot!.answerCallbackQuery(query.id).catch(() => {});
   });
 
   // General messages (non-commands)
@@ -487,9 +637,9 @@ function initTelegramBot() {
 
     if (containsPriceKeyword(text)) {
       try {
-        await telegramBot!.sendChatAction(chatId, 'typing');
-        const priceMsg = await getLatestPriceMessage();
-        await telegramBot!.sendMessage(chatId, priceMsg, { parse_mode: 'Markdown' });
+        await telegramBot!.sendChatAction(chatId, 'upload_photo');
+        const { text: priceText, imageBuffer } = await getPriceTextAndImage();
+        await sendPriceToChat(chatId, false, imageBuffer, priceText);
         await logPriceRequest(chatId, msg.from?.username, msg.from?.first_name).catch(() => {});
       } catch (err) {
         console.error('خطأ في إرسال رسالة البوت:', err);
@@ -497,13 +647,19 @@ function initTelegramBot() {
       return;
     }
 
-    const hint =
-      `💬 شكراً على تواصلك!\n\n` +
-      `لمعرفة أسعار الذهب، اكتب:\n` +
-      `*"سعر الذهب"* أو اضغط /price\n\n` +
-      `للاشتراك في التحديثات التلقائية: /start\n\n` +
-      `💎 نسعد بخدمتكم!`;
-    await telegramBot!.sendMessage(chatId, hint, { parse_mode: 'Markdown' });
+    await telegramBot!.sendMessage(chatId,
+      `💬 _شكراً على تواصلك!_\n\n` +
+      `لمعرفة أسعار الذهب اكتب:\n*"سعر الذهب"* أو اضغط /price`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '💰 السعر الآن', callback_data: 'get_price' },
+            { text: '❓ مساعدة', callback_data: 'help' },
+          ]],
+        },
+      }
+    );
   });
 
   telegramBot.on('polling_error', (err) => {
