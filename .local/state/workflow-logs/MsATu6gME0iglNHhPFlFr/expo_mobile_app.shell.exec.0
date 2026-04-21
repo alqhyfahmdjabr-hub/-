@@ -1,0 +1,96 @@
+[1G[0K⠙[1G[0K⠹[1G[0K⠸[1G[0K⠼[1G[0K⠴[1G[0K⠦[1G[0K⠧[1G[0K[90menv: load .env[39m
+[90menv: export EXPO_PUBLIC_API_URL[39m
+[90mStarting project at /home/runner/workspace/mobile[39m
+[2mStarting Metro Bundler[22m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀█ █▄   ▀▄▄▄▄▀█▄▀█▀▀ █ ▄▄▄▄▄ █
+█ █   █ █▀▀▀█ ▄▀ █▀▄█▀▄▀▄▄▀█ ██ █   █ █
+█ █▄▄▄█ █▀ █▀▀██▄▄▄ ▄ ██▄▀▄▄▀ █ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀ ▀▄█ █ █▄█ ▀ █▄█▄█▄█▄▄▄▄▄▄▄█
+█▄ ▄▄ ▀▄  ▄▀▄▀▀▀▀▄▄█▀▀▀▀ ▄▄▀▄▄ █▄█▄▀▄██
+█▀  ▀ ▄▄▄█▄ █▀ ▄ ▄█▀▀█▀▄▀ ▄▄     ▄▀▄▀▄█
+█▄ ▄█ ▄▄ █▄██▄█▄ ▀  ▀ ▀▄▀▄▄▀███▄▄▄▀ ▄██
+█  █ ▄█▄█▀ ▄ ▄█▀█▀▄▀▀▀ ▄█▀▄  ▄ ▀▀▄▀██▄█
+██▄█▀▄█▄▄ █▀▄▀▀▀▀▄▄▀ █▀ ▀▀ ▀▄▄▀▄▀▄█▄▀██
+█▄ █ ▀ ▄▀ █▀█▀ ▄ ▄█▀█ ▀ ███▀ ▀▄ █▀▄██ █
+█ ▀█▀▀▄▄▀▀ ██▄█▄ ▀▄▀▀▀▀▄  ▄▄▄▄▀▄▄▄ ▄▀▄█
+█▀█  ██▄▄▄ ▀ ▄█▀█▀██▀▄▀██ ▄█ ▄▀▀ ▀ ▄▄ █
+█▀██▀█▄▄█   ▄▀▀▀▀█▄█ ▀▀▄▀▀▄▀▄▀▀▄█▄▀ ▀██
+█ ███  ▄  ▀ █▀ ▄ █▄▀█▄ ▄█ █▄ ▄▀ ▀▄ █  █
+█▄███▄▄▄▄  ▀█▄█▄▄▄ ▄ ▀▀▀▀▀▄▀  ▄▄▄ █▄▄▄█
+█ ▄▄▄▄▄ █▄▀▄ ▄█▀ █▄ ██▀▀██▄ █ █▄█ ▄█▄ █
+█ █   █ █ ▄▄▄▀▀▀█▄ ▄▀ ▀▀  ▄▄▄▄▄ ▄  ▄▀ █
+█ █▄▄▄█ █  ▄█▀ ▄ ██ ▀▀  ▀ █▀▀ ▄▀ ██▄▄ █
+█▄▄▄▄▄▄▄█▄█▄█▄█▄▄▄▄▄▄████▄▄▄▄█▄█▄█▄▄▄▄█
+
+› Metro waiting on
+[4mexp://94b84cef-8f75-4913-aa41-3ad8679b47ab-00-1blrhk6dwbd35.pike.replit.dev:8080[24m
+› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+
+› Using [36mExpo Go[39m
+› Press [1ms[22m [2m│[22m switch to development build
+
+› Press [1ma[22m [2m│[22m open Android
+[2m› Press [1mw[22m[2m [2m│[22m[2m open web[22m
+
+› Press [1mj[22m [2m│[22m open debugger
+› Press [1mr[22m [2m│[22m reload app
+› Press [1mm[22m [2m│[22m toggle menu
+› [1mshift+m[22m [2m│[22m more tools
+› Press [1mo[22m [2m│[22m open project code in your editor
+
+› Press [1m?[22m [2m│[22m show all commands
+
+Logs for your project will appear below.[2m Press Ctrl+C to exit.[22m
+[1miOS[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[134D[1A[0J[31m[1miOS[22m Bundling failed [39m[2m238ms[22m[0m[2m node_modules/expo-router/entry.js (1 module)[22m[0m
+[1miOS[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[134D[1A[0J[31m[7m[1m ERROR [22m[27m[39m Error: [BABEL]: Cannot find module 'react-native-worklets/plugin'
+Require stack:
+- /home/runner/workspace/mobile/node_modules/react-native-reanimated/plugin/index.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/config/files/module-types.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/config/files/configuration.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/config/files/index.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/index.js
+- /home/runner/workspace/mobile/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+- /home/runner/workspace/mobile/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+- /home/runner/workspace/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+- /home/runner/workspace/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+- /home/runner/workspace/mobile/node_modules/jest-worker/build/workers/processChild.js (While processing: /home/runner/workspace/mobile/node_modules/react-native-reanimated/plugin/index.js)
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/home/runner/workspace/mobile/node_modules/react-native-reanimated/plugin/index.js:2:16)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+[1miOS[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[134D[1A[0J[31m[1miOS[22m Bundling failed [39m[2m6ms[22m[0m[2m node_modules/expo-router/entry.js (1 module)[22m[0m
+[1miOS[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[134D[1A[0J[31m[7m[1m ERROR [22m[27m[39m Error: [BABEL]: Cannot find module 'react-native-worklets/plugin'
+Require stack:
+- /home/runner/workspace/mobile/node_modules/react-native-reanimated/plugin/index.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/config/files/module-types.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/config/files/configuration.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/config/files/index.js
+- /home/runner/workspace/mobile/node_modules/@babel/core/lib/index.js
+- /home/runner/workspace/mobile/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+- /home/runner/workspace/mobile/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+- /home/runner/workspace/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+- /home/runner/workspace/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+- /home/runner/workspace/mobile/node_modules/jest-worker/build/workers/processChild.js (While processing: /home/runner/workspace/mobile/node_modules/react-native-reanimated/plugin/index.js)
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/home/runner/workspace/mobile/node_modules/react-native-reanimated/plugin/index.js:2:16)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+[?25l[37m⠋[39m Stopping server[2K[1G[?25h› Stopped server
+[?25h[1G[0K⠙[1G[0K

@@ -1,0 +1,37 @@
+
+> react-example@0.0.0 server
+> tsx watch server.ts
+
+[1G[0K[dotenv@17.3.1] injecting env (0) from .env [2m-- tip: ⚙️  override existing env vars with { override: true }[0m
+🚀 الخادم يعمل على المنفذ 3001
+⏱ الجدولة التلقائية غير مفعّلة
+🤖 بوت تيليجرام مفعّل: @babel120_bot
+🔗 رابط البوت: https://t.me/babel120_bot
+📢 تم البث لـ 1 من أصل 1 مشترك
+📢 تم البث لـ 1 من أصل 1 مشترك
+[90m11:29:42 PM[39m [96m[tsx][39m [95mchange[39m in [92m./server.ts[39m [33mRestarting...[39m
+c[dotenv@17.3.1] injecting env (0) from .env [2m-- tip: ⚙️  enable debug logging with { debug: true }[0m
+🚀 الخادم يعمل على المنفذ 3001
+⏱ الجدولة التلقائية غير مفعّلة
+🤖 بوت تيليجرام مفعّل: @babel120_bot
+🔗 رابط البوت: https://t.me/babel120_bot
+[90m11:29:55 PM[39m [96m[tsx][39m [95mchange[39m in [92m./server.ts[39m [33mRestarting...[39m
+c[dotenv@17.3.1] injecting env (0) from .env [2m-- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com[0m
+🚀 الخادم يعمل على المنفذ 3001
+⏱ الجدولة التلقائية غير مفعّلة
+🤖 بوت تيليجرام مفعّل: @babel120_bot
+🔗 رابط البوت: https://t.me/babel120_bot
+(node:655) [node-telegram-bot-api] DeprecationWarning: Buffers will have their filenames default to "filename" instead of "data". See https://github.com/yagop/node-telegram-bot-api/blob/master/doc/usage.md#sending-files for more information on how sending files has been improved and on how to disable this deprecation message altogether.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[90m11:41:01 PM[39m [96m[tsx][39m [95mchange[39m in [92m./server.ts[39m [33mRestarting...[39m
+c[dotenv@17.3.1] injecting env (0) from .env [2m-- tip: 🤖 agentic secret storage: https://dotenvx.com/as2[0m
+🚀 الخادم يعمل على المنفذ 3001
+⏱ الجدولة التلقائية غير مفعّلة
+🤖 بوت تيليجرام مفعّل: @babel120_bot
+🔗 رابط البوت: https://t.me/babel120_bot
+[90m11:41:11 PM[39m [96m[tsx][39m [95mchange[39m in [92m./server.ts[39m [33mRestarting...[39m
+c[dotenv@17.3.1] injecting env (0) from .env [2m-- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`[0m
+🚀 الخادم يعمل على المنفذ 3001 (تطوير)
+⏱ الجدولة التلقائية غير مفعّلة
+🤖 بوت تيليجرام مفعّل: @babel120_bot
+🔗 رابط البوت: https://t.me/babel120_bot
