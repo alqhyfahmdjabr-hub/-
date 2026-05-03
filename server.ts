@@ -40,6 +40,40 @@ async function initDatabase() {
       action TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS store_settings (
+      id SERIAL PRIMARY KEY,
+      name TEXT DEFAULT 'مجوهرات بابل',
+      contacts TEXT DEFAULT '',
+      branches TEXT DEFAULT '',
+      group_link TEXT DEFAULT '',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS gold_prices (
+      id SERIAL PRIMARY KEY,
+      buy_price TEXT NOT NULL,
+      sell_price TEXT NOT NULL,
+      karat TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      note TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL,
+      gold_price_id INTEGER REFERENCES gold_prices(id),
+      image_data TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+      id SERIAL PRIMARY KEY,
+      time_hour INTEGER DEFAULT 9,
+      time_minute INTEGER DEFAULT 0,
+      is_active BOOLEAN DEFAULT FALSE
+    );
+
+    -- Insert default settings and task if not exists
+    INSERT INTO store_settings (id, name) VALUES (1, 'مجوهرات بابل') ON CONFLICT DO NOTHING;
+    INSERT INTO scheduled_tasks (id) VALUES (1) ON CONFLICT DO NOTHING;
   `);
 }
 

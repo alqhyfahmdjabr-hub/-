@@ -390,6 +390,15 @@ ${GROUP_LINK}`;
             <Settings className="w-4 h-4" />
             <span className="font-medium text-sm">إعدادات المتجر</span>
           </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2 py-4 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'history' ? 'border-amber-500 text-amber-500' : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="font-medium text-sm">السجل والأرشيف</span>
+          </button>
         </div>
       </header>
 
@@ -833,6 +842,67 @@ ${GROUP_LINK}`;
             </motion.section>
           )}
 
+          {/* --- HISTORY TAB --- */}
+          {activeTab === 'history' && (
+            <motion.section 
+              key="history"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 backdrop-blur-sm">
+                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-amber-500 rounded-full"></span>
+                  آخر تحديثات الأسعار
+                </h2>
+                {loadingHistory ? (
+                  <div className="py-12 flex justify-center"><RefreshCw className="w-8 h-8 animate-spin text-zinc-700" /></div>
+                ) : goldPrices.length > 0 ? (
+                  <div className="space-y-3">
+                    {goldPrices.slice(0, 10).map((price, i) => (
+                      <div key={i} className="bg-zinc-950 border border-white/5 rounded-xl p-4 flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-amber-500">{price.buy_price} / {price.sell_price} {price.currency}</p>
+                          <p className="text-xs text-zinc-500">عيار {price.karat} - {new Date(price.created_at).toLocaleString('ar-SA')}</p>
+                        </div>
+                        {price.note && <span className="text-xs px-2 py-1 bg-zinc-800 rounded text-zinc-400">{price.note}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-8 text-zinc-500">لا يوجد سجل أسعار بعد</p>
+                )}
+              </div>
+
+              <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 backdrop-blur-sm">
+                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+                  الرسائل المؤرشفة
+                </h2>
+                {loadingHistory ? (
+                  <div className="py-12 flex justify-center"><RefreshCw className="w-8 h-8 animate-spin text-zinc-700" /></div>
+                ) : savedMessages.length > 0 ? (
+                  <div className="space-y-4">
+                    {savedMessages.slice(0, 5).map((msg, i) => (
+                      <div key={i} className="bg-zinc-950 border border-white/5 rounded-xl p-4">
+                        <p className="text-xs text-zinc-500 mb-2">{new Date(msg.created_at).toLocaleString('ar-SA')}</p>
+                        <p className="text-sm text-zinc-300 line-clamp-3 whitespace-pre-wrap">{msg.content}</p>
+                        <button 
+                          onClick={() => { setGeneratedMessage(msg.content); setActiveTab('preview'); }}
+                          className="mt-3 text-xs text-amber-500 hover:underline"
+                        >
+                          عرض الرسالة بالكامل
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-8 text-zinc-500">لا توجد رسائل مؤرشفة بعد</p>
+                )}
+              </div>
+            </motion.section>
+          )}
         </AnimatePresence>
       </main>
     </div>
