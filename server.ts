@@ -527,8 +527,9 @@ function initTelegramBot() {
   ]).catch(() => {});
 
   // /start
-  telegramBot.onText(/\/start/, async (msg) => {
+    telegramBot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
+    console.log(`📩 [Bot] Received /start from ${chatId}`);
     const firstName = msg.from?.first_name || 'عزيزنا';
     try { await saveSubscriber(chatId, msg.from?.username, msg.from?.first_name); } catch {}
 
@@ -669,6 +670,7 @@ function initTelegramBot() {
   telegramBot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text || '';
+    console.log(`📩 [Bot] Incoming message from ${chatId}: "${text}"`);
     if (text.startsWith('/')) return;
 
     if (containsPriceKeyword(text)) {
